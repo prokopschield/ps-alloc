@@ -2,7 +2,7 @@ use std::alloc::LayoutError;
 
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub enum AllocationError {
     #[error("An arithmetic error occured.")]
     ArithmeticError,
