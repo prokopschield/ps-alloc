@@ -2,7 +2,7 @@ use std::alloc::LayoutError;
 
 use thiserror::Error;
 
-#[derive(Clone, Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Error, PartialEq, Eq, Clone)]
 pub enum AllocationError {
     #[error("An arithmetic error occured.")]
     ArithmeticError,
@@ -12,7 +12,7 @@ pub enum AllocationError {
     OutOfMemory,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq, Clone)]
 pub enum DeallocationError {
     #[error("This memory was already freed.")]
     DoubleFree,
