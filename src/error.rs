@@ -1,3 +1,5 @@
+#![allow(clippy::module_name_repetitions)]
+
 use std::alloc::LayoutError;
 
 use thiserror::Error;

@@ -17,8 +17,13 @@ struct Allocation {
 /// - A reasonably safe implementation of `alloc`.
 /// - Memory allocated by this function must be freed by this crate's `free`.
 /// - Caller guarantees `free` is called before the returned pointer goes out of scope.
+/// # Errors
+/// - `Err(ArithmeticError)` is returned on integer overflow, which shouldn't happen.
+/// - `Err(LayoutError)` is returned if `sizeof(([u8; 8], usize))` isn't a power of 2.
+/// - `Err(OutOfMemory)` is returned if `alloc()` returned a `nullptr`.
+#[allow(clippy::cast_ptr_alignment)]
 pub fn alloc(size: usize) -> Result<*mut u8, AllocationError> {
-    use AllocationError::*;
+    use AllocationError::{ArithmeticError, OutOfMemory};
 
     let size = size
         .div_ceil(ALIGNMENT)
@@ -32,7 +37,7 @@ pub fn alloc(size: usize) -> Result<*mut u8, AllocationError> {
     let ptr = unsafe { std::alloc::alloc(layout) };
 
     if ptr.is_null() {
-        Err(OutOfMemory)?
+        Err(OutOfMemory)?;
     }
 
     let allocation = unsafe { &mut *(ptr.cast::<Allocation>()) };
@@ -50,26 +55,28 @@ pub fn alloc(size: usize) -> Result<*mut u8, AllocationError> {
 /// - Caller guarantees that the provided pointer was allocated by this crate's `alloc` function.
 /// - Providing `NULL` is safe and will return `Err(DeallocationError::NullPtr)`.
 /// - Providing any other pointer is undefined behaviour.
+/// # Errors
+/// - Returns `Err(DeallocationError)` if a safety check fails.
 pub fn free<T>(ptr: *mut T) -> Result<(), DeallocationError> {
-    use DeallocationError::*;
+    use DeallocationError::{DoubleFree, ImproperAlignment, InvalidAllocation, NullPtr};
 
     if ptr.is_null() {
-        Err(NullPtr)?
+        Err(NullPtr)?;
     }
 
     let ptr = ptr.cast::<Allocation>();
 
     if !ptr.is_aligned() {
-        Err(ImproperAlignment)?
+        Err(ImproperAlignment)?;
     }
 
     let ptr = unsafe { ptr.sub(1) };
     let allocation = unsafe { &mut *ptr };
 
     if allocation.marker == MARKER_FREE {
-        Err(DoubleFree)?
+        Err(DoubleFree)?;
     } else if allocation.marker != MARKER_USED {
-        Err(InvalidAllocation)?
+        Err(InvalidAllocation)?;
     }
 
     let layout = Layout::from_size_align(allocation.size, ALIGNMENT)?;
