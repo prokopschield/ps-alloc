@@ -67,14 +67,13 @@ pub fn free<T>(ptr: *mut T) -> Result<(), DeallocationError> {
         return Err(DeallocationError::NullPtr);
     }
 
-    let ptr = ptr.cast::<Allocation>();
+    let header_ptr = unsafe { ptr.cast::<u8>().sub(ALIGNMENT).cast::<Allocation>() };
 
     if !ptr.is_aligned() {
         return Err(DeallocationError::ImproperAlignment);
     }
 
-    let ptr = unsafe { ptr.sub(1) };
-    let allocation = unsafe { &mut *ptr };
+    let allocation = unsafe { &mut *header_ptr };
 
     if allocation.marker == MARKER_FREE {
         return Err(DeallocationError::DoubleFree);
@@ -86,7 +85,7 @@ pub fn free<T>(ptr: *mut T) -> Result<(), DeallocationError> {
 
     allocation.marker = MARKER_FREE;
 
-    unsafe { std::alloc::dealloc(ptr.cast(), layout) }
+    unsafe { std::alloc::dealloc(header_ptr.cast(), layout) };
 
     Ok(())
 }
