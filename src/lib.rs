@@ -19,6 +19,7 @@ struct Allocation {
 /// - Caller guarantees `free` is called before the returned pointer goes out of scope.
 /// # Errors
 /// - `Err(ArithmeticError)` is returned on integer overflow, which shouldn't happen.
+/// - `Err(ImproperAlignment)` is returned if the global allocator returns a misaligned pointer.
 /// - `Err(LayoutError)` is returned if `sizeof(([u8; 8], usize))` isn't a power of 2.
 /// - `Err(OutOfMemory)` is returned if `alloc()` returned a `nullptr`.
 #[allow(clippy::cast_ptr_alignment)]
