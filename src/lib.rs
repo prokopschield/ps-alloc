@@ -68,7 +68,7 @@ pub fn free<T>(ptr: *mut T) -> Result<(), DeallocationError> {
 
     let header_ptr = unsafe { ptr.cast::<u8>().sub(ALIGNMENT).cast::<Allocation>() };
 
-    if !ptr.is_aligned() {
+    if !header_ptr.is_aligned() {
         return Err(DeallocationError::ImproperAlignment);
     }
 
