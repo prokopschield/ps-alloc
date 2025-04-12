@@ -18,10 +18,10 @@ struct Allocation {
 /// - Memory allocated by this function must be freed by this crate's `free`.
 /// - Caller guarantees `free` is called before the returned pointer goes out of scope.
 /// # Errors
-/// - `Err(ArithmeticError)` is returned on integer overflow, which shouldn't happen.
-/// - `Err(ImproperAlignment)` is returned if the global allocator returns a misaligned pointer.
-/// - `Err(LayoutError)` is returned if `sizeof(([u8; 8], usize))` isn't a power of 2.
-/// - `Err(OutOfMemory)` is returned if `alloc()` returned a `nullptr`.
+/// - `Err(ArithmeticError)` on integer overflow.
+/// - `Err(ImproperAlignment)` if the global allocator returns a misaligned pointer.
+/// - `Err(LayoutError)` if [`ALIGNMENT`] isn't a power of 2 or the computed size is not aligned.
+/// - `Err(OutOfMemory)` if `alloc()` returns a `nullptr`.
 #[allow(clippy::cast_ptr_alignment)]
 pub fn alloc(size: usize) -> Result<*mut u8, AllocationError> {
     let size = size
@@ -59,7 +59,7 @@ pub fn alloc(size: usize) -> Result<*mut u8, AllocationError> {
 /// - This function will free a pointer allocated by `alloc`.
 /// - Caller guarantees that the provided pointer was allocated by this crate's `alloc` function.
 /// - Providing `NULL` is safe and will return `Err(DeallocationError::NullPtr)`.
-/// - Providing any other pointer is undefined behaviour.
+/// - Providing any other pointer causes undefined behaviour.
 /// # Errors
 /// - Returns `Err(DeallocationError)` if a safety check fails.
 pub fn free<T>(ptr: *mut T) -> Result<(), DeallocationError> {
