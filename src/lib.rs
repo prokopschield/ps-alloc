@@ -37,7 +37,7 @@ pub fn alloc(size: usize) -> Result<*mut u8, AllocationError> {
     let ptr = unsafe { std::alloc::alloc(layout) };
 
     if ptr.is_null() {
-        Err(OutOfMemory)?;
+        return Err(OutOfMemory);
     }
 
     let allocation = unsafe { &mut *(ptr.cast::<Allocation>()) };
@@ -61,22 +61,22 @@ pub fn free<T>(ptr: *mut T) -> Result<(), DeallocationError> {
     use DeallocationError::{DoubleFree, ImproperAlignment, InvalidAllocation, NullPtr};
 
     if ptr.is_null() {
-        Err(NullPtr)?;
+        return Err(NullPtr);
     }
 
     let ptr = ptr.cast::<Allocation>();
 
     if !ptr.is_aligned() {
-        Err(ImproperAlignment)?;
+        return Err(ImproperAlignment);
     }
 
     let ptr = unsafe { ptr.sub(1) };
     let allocation = unsafe { &mut *ptr };
 
     if allocation.marker == MARKER_FREE {
-        Err(DoubleFree)?;
+        return Err(DoubleFree);
     } else if allocation.marker != MARKER_USED {
-        Err(InvalidAllocation)?;
+        return Err(InvalidAllocation);
     }
 
     let layout = Layout::from_size_align(allocation.size, ALIGNMENT)?;
