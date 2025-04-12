@@ -25,10 +25,9 @@ struct Allocation {
 #[allow(clippy::cast_ptr_alignment)]
 pub fn alloc(size: usize) -> Result<*mut u8, AllocationError> {
     let size = size
-        .div_ceil(ALIGNMENT)
-        .checked_add(1)
+        .checked_add(ALIGNMENT)
         .ok_or(AllocationError::ArithmeticError)?
-        .checked_mul(ALIGNMENT)
+        .checked_next_multiple_of(ALIGNMENT)
         .ok_or(AllocationError::ArithmeticError)?;
 
     let layout = Layout::from_size_align(size, ALIGNMENT)?;
