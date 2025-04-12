@@ -8,6 +8,8 @@ use thiserror::Error;
 pub enum AllocationError {
     #[error("An arithmetic error occured.")]
     ArithmeticError,
+    #[error("The allocated memory was not properly aligned.")]
+    ImproperAlignment,
     #[error(transparent)]
     LayoutError(#[from] LayoutError),
     #[error("Process ran out of memory.")]

@@ -40,6 +40,12 @@ pub fn alloc(size: usize) -> Result<*mut u8, AllocationError> {
         return Err(OutOfMemory);
     }
 
+    if 0 != (ptr as usize % ALIGNMENT) {
+        unsafe { std::alloc::dealloc(ptr, layout) };
+
+        return Err(AllocationError::ImproperAlignment);
+    }
+
     let allocation = unsafe { &mut *(ptr.cast::<Allocation>()) };
 
     allocation.marker = MARKER_USED;
