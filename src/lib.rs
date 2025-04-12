@@ -1,3 +1,5 @@
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
 mod error;
 
 use std::alloc::Layout;
@@ -66,6 +68,11 @@ pub fn free<T>(ptr: *mut T) -> Result<(), DeallocationError> {
         return Err(DeallocationError::NullPtr);
     }
 
+    if 0 != ptr as usize % ALIGNMENT {
+        return Err(DeallocationError::ImproperAlignment);
+    }
+
+    #[allow(clippy::cast_ptr_alignment)]
     let header_ptr = unsafe { ptr.cast::<u8>().sub(ALIGNMENT).cast::<Allocation>() };
 
     if !header_ptr.is_aligned() {
@@ -87,4 +94,61 @@ pub fn free<T>(ptr: *mut T) -> Result<(), DeallocationError> {
     unsafe { std::alloc::dealloc(header_ptr.cast(), layout) };
 
     Ok(())
+}
+
+/// Reallocates memory allocated by [`alloc`].
+/// # Errors
+/// - `AllocationError` if `alloc()` fails
+/// - `DeallocationError` if `free(ptr)` fails
+/// - `FreeFailedTwice` if `free(ptr)` fails and freeing the newly allocate pointer also fails
+/// - `ImproperAlignment` if `ptr` is not properly aligned
+/// - `InvalidPointer` if `ptr` was not allocated by [`alloc`] or is invalid
+/// - `UseAfterFree` if you try to `realloc` a freed pointer
+pub fn relloc(ptr: *mut u8, new_size: usize) -> Result<*mut u8, ReallocationError> {
+    if 0 == new_size {
+        if !ptr.is_null() {
+            free(ptr)?;
+        }
+
+        return Ok(std::ptr::null_mut());
+    }
+
+    if ptr.is_null() {
+        return Ok(alloc(new_size)?);
+    }
+
+    if 0 != ptr as usize % ALIGNMENT {
+        return Err(ReallocationError::ImproperAlignment);
+    }
+
+    #[allow(clippy::cast_ptr_alignment)]
+    let header_ptr = unsafe { ptr.sub(ALIGNMENT) }.cast::<Allocation>();
+
+    if !header_ptr.is_aligned() {
+        return Err(ReallocationError::ImproperAlignment);
+    }
+
+    let header = unsafe { &*header_ptr };
+
+    if header.marker == MARKER_FREE {
+        return Err(ReallocationError::UseAfterFree);
+    } else if header.marker != MARKER_USED {
+        return Err(ReallocationError::InvalidPointer);
+    }
+
+    let new_ptr = alloc(new_size)?;
+
+    unsafe {
+        std::ptr::copy_nonoverlapping::<u8>(ptr, new_ptr, header.size.min(new_size));
+    }
+
+    let free_result = free(ptr);
+
+    match free_result {
+        Ok(()) => Ok(new_ptr),
+        Err(err) => match free(new_ptr) {
+            Ok(()) => Err(err)?,
+            Err(err2) => Err(ReallocationError::FreeFailedTwice(err, err2)),
+        },
+    }
 }
