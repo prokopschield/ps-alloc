@@ -23,21 +23,19 @@ struct Allocation {
 /// - `Err(OutOfMemory)` is returned if `alloc()` returned a `nullptr`.
 #[allow(clippy::cast_ptr_alignment)]
 pub fn alloc(size: usize) -> Result<*mut u8, AllocationError> {
-    use AllocationError::{ArithmeticError, OutOfMemory};
-
     let size = size
         .div_ceil(ALIGNMENT)
         .checked_add(1)
-        .ok_or(ArithmeticError)?
+        .ok_or(AllocationError::ArithmeticError)?
         .checked_mul(ALIGNMENT)
-        .ok_or(ArithmeticError)?;
+        .ok_or(AllocationError::ArithmeticError)?;
 
     let layout = Layout::from_size_align(size, ALIGNMENT)?;
 
     let ptr = unsafe { std::alloc::alloc(layout) };
 
     if ptr.is_null() {
-        return Err(OutOfMemory);
+        return Err(AllocationError::OutOfMemory);
     }
 
     if 0 != (ptr as usize % ALIGNMENT) {
@@ -64,25 +62,23 @@ pub fn alloc(size: usize) -> Result<*mut u8, AllocationError> {
 /// # Errors
 /// - Returns `Err(DeallocationError)` if a safety check fails.
 pub fn free<T>(ptr: *mut T) -> Result<(), DeallocationError> {
-    use DeallocationError::{DoubleFree, ImproperAlignment, InvalidAllocation, NullPtr};
-
     if ptr.is_null() {
-        return Err(NullPtr);
+        return Err(DeallocationError::NullPtr);
     }
 
     let ptr = ptr.cast::<Allocation>();
 
     if !ptr.is_aligned() {
-        return Err(ImproperAlignment);
+        return Err(DeallocationError::ImproperAlignment);
     }
 
     let ptr = unsafe { ptr.sub(1) };
     let allocation = unsafe { &mut *ptr };
 
     if allocation.marker == MARKER_FREE {
-        return Err(DoubleFree);
+        return Err(DeallocationError::DoubleFree);
     } else if allocation.marker != MARKER_USED {
-        return Err(InvalidAllocation);
+        return Err(DeallocationError::InvalidAllocation);
     }
 
     let layout = Layout::from_size_align(allocation.size, ALIGNMENT)?;
