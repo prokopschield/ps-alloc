@@ -142,9 +142,7 @@ pub fn relloc(ptr: *mut u8, new_size: usize) -> Result<*mut u8, ReallocationErro
         std::ptr::copy_nonoverlapping::<u8>(ptr, new_ptr, header.size.min(new_size));
     }
 
-    let free_result = free(ptr);
-
-    match free_result {
+    match free(ptr) {
         Ok(()) => Ok(new_ptr),
         Err(err) => match free(new_ptr) {
             Ok(()) => Err(err)?,
