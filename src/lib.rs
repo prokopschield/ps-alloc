@@ -6,12 +6,12 @@ use std::alloc::Layout;
 
 pub use error::*;
 
-pub const ALIGNMENT: usize = std::mem::size_of::<Allocation>();
+pub const HEADER_SIZE: usize = std::mem::size_of::<AllocationHeader>();
 pub const MARKER_FREE: [u8; 8] = *b"Fr33Mmry";
 pub const MARKER_USED: [u8; 8] = *b"U53dMmry";
 
 #[repr(align(16))]
-struct Allocation {
+struct AllocationHeader {
     marker: [u8; 8],
     size: usize,
 }
@@ -27,12 +27,12 @@ struct Allocation {
 #[allow(clippy::cast_ptr_alignment)]
 pub fn alloc(size: usize) -> Result<*mut u8, AllocationError> {
     let size = size
-        .checked_add(ALIGNMENT)
+        .checked_add(HEADER_SIZE)
         .ok_or(AllocationError::ArithmeticError)?
-        .checked_next_multiple_of(ALIGNMENT)
+        .checked_next_multiple_of(HEADER_SIZE)
         .ok_or(AllocationError::ArithmeticError)?;
 
-    let layout = Layout::from_size_align(size, ALIGNMENT)?;
+    let layout = Layout::from_size_align(size, HEADER_SIZE)?;
 
     let ptr = unsafe { std::alloc::alloc(layout) };
 
@@ -40,18 +40,18 @@ pub fn alloc(size: usize) -> Result<*mut u8, AllocationError> {
         return Err(AllocationError::OutOfMemory);
     }
 
-    if 0 != (ptr as usize % ALIGNMENT) {
+    if 0 != (ptr as usize % HEADER_SIZE) {
         unsafe { std::alloc::dealloc(ptr, layout) };
 
         return Err(AllocationError::ImproperAlignment);
     }
 
-    let allocation = unsafe { &mut *(ptr.cast::<Allocation>()) };
+    let header = unsafe { &mut *(ptr.cast::<AllocationHeader>()) };
 
-    allocation.marker = MARKER_USED;
-    allocation.size = size;
+    header.marker = MARKER_USED;
+    header.size = size;
 
-    let ptr = unsafe { ptr.add(ALIGNMENT) };
+    let ptr = unsafe { ptr.add(HEADER_SIZE) };
 
     Ok(ptr)
 }
@@ -68,28 +68,28 @@ pub fn free<T>(ptr: *mut T) -> Result<(), DeallocationError> {
         return Err(DeallocationError::NullPtr);
     }
 
-    if 0 != ptr as usize % ALIGNMENT {
+    if 0 != ptr as usize % HEADER_SIZE {
         return Err(DeallocationError::ImproperAlignment);
     }
 
     #[allow(clippy::cast_ptr_alignment)]
-    let header_ptr = unsafe { ptr.cast::<u8>().sub(ALIGNMENT).cast::<Allocation>() };
+    let header_ptr = unsafe { ptr.cast::<u8>().sub(HEADER_SIZE).cast::<AllocationHeader>() };
 
     if !header_ptr.is_aligned() {
         return Err(DeallocationError::ImproperAlignment);
     }
 
-    let allocation = unsafe { &mut *header_ptr };
+    let header = unsafe { &mut *header_ptr };
 
-    if allocation.marker == MARKER_FREE {
+    if header.marker == MARKER_FREE {
         return Err(DeallocationError::DoubleFree);
-    } else if allocation.marker != MARKER_USED {
+    } else if header.marker != MARKER_USED {
         return Err(DeallocationError::InvalidAllocation);
     }
 
-    let layout = Layout::from_size_align(allocation.size, ALIGNMENT)?;
+    let layout = Layout::from_size_align(header.size, HEADER_SIZE)?;
 
-    allocation.marker = MARKER_FREE;
+    header.marker = MARKER_FREE;
 
     unsafe { std::alloc::dealloc(header_ptr.cast(), layout) };
 
@@ -117,12 +117,12 @@ pub fn relloc(ptr: *mut u8, new_size: usize) -> Result<*mut u8, ReallocationErro
         return Ok(alloc(new_size)?);
     }
 
-    if 0 != ptr as usize % ALIGNMENT {
+    if 0 != ptr as usize % HEADER_SIZE {
         return Err(ReallocationError::ImproperAlignment);
     }
 
     #[allow(clippy::cast_ptr_alignment)]
-    let header_ptr = unsafe { ptr.sub(ALIGNMENT) }.cast::<Allocation>();
+    let header_ptr = unsafe { ptr.sub(HEADER_SIZE) }.cast::<AllocationHeader>();
 
     if !header_ptr.is_aligned() {
         return Err(ReallocationError::ImproperAlignment);
